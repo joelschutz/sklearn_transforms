@@ -1,4 +1,5 @@
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.impute import SimpleImputer
 import pandas as pd
 import numpy as np
 
@@ -17,26 +18,48 @@ class DropColumns(BaseEstimator, TransformerMixin):
         # Retornamos um novo dataframe sem as colunas indesejadas
         return data.drop(labels=self.columns, axis='columns')
 
-class MediaNotas(BaseEstimator, TransformerMixin):
-    '''Rebece uma string para ser o nome da coluna de medias'''
-    def __init__(self, nome_da_coluna):
-        self.nome = nome_da_coluna
+class FillNan(BaseEstimator, TransformerMixin):
+    def __init__(self, column):
+        self.column = column
 
     def fit(self, X, y=None):
         return self
-
-    def media_notas(self, x):
-        notas = []
-        notas.append(x['NOTA_DE']) if x['NOTA_DE'] != np.nan else notas.append(0)
-        notas.append(x['NOTA_EM']) if x['NOTA_EM'] != np.nan else notas.append(0)
-        notas.append(x['NOTA_MF']) if x['NOTA_MF'] != np.nan else notas.append(0)
-        notas.append(x['NOTA_GO']) if x['NOTA_GO'] != np.nan else notas.append(0)
-        media = np.sum(notas)/4
-        return pd.Series(data=[media], index=[self.nome])
-
+   
     def transform(self, X):
+        # Primeiro realizamos a cópia do dataframe 'X' de entrada
         data = X.copy()
+        perfis = data['PERFIL'][:]
+        medias = data.groupby('PERFIL')[self.column].median()
+        data = data.set_index(['PERFIL'])
+        data[self.column] = data[self.column].fillna(medias)
+        data.reset_index(level=0, inplace=True)
+        return data
 
-        coluna_media = data.apply(self.media_notas, axis=1)
-        data_c_media = data.join(coluna_media)
-        return data_c_media
+class SimpleImputerCustom(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        # Primeiro realizamos a cópia do dataframe 'X' de entrada
+        data = X.copy()
+        si = SimpleImputer(missing_values=np.nan,strategy='median')
+        return pd.DataFrame.from_records(data=si.fit_transform(X=data), columns=data.columns)
+
+class CombMedias(BaseEstimator, TransformerMixin):
+    def __init__(self, columns, name):
+        self.columns = columns
+        self.name = name
+
+    def fit(self, X, y=None):
+        return self
+      
+    def comb(self, data):
+        return pd.Series([
+        np.sum([data[nota] for nota in self.columns])/len(self.columns)], index =[f'COMB_{self.name}']
+        )
+          
+    def transform(self, X):
+        # Primeiro realizamos a cópia do dataframe 'X' de entrada
+        data = X.copy()
+        data = data.join(data.apply(self.comb, axis=1))
+        return data
