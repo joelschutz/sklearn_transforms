@@ -37,6 +37,6 @@ class MediaNotas(BaseEstimator, TransformerMixin):
     def transform(self, X):
         data = X.copy()
 
-        coluna_media = data.head().apply(self.media_notas, axis=1)
-        data_c_media = data.head().join(coluna_media)
+        coluna_media = data.apply(self.media_notas, axis=1)
+        data_c_media = data.join(coluna_media)
         return data_c_media
